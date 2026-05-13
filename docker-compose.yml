@@ -10,5 +10,26 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  core:
+    build: ./core
+    ports:
+      - "8000:8000"
+    environment:
+      LUTHER_DATABASE_URL: postgresql+asyncpg://luther:luther@db:5432/luther
+      LUTHER_ENCRYPTION_KEY: dev-only-change-in-prod-32chars!
+      LUTHER_GATEWAY_SECRET: shared-secret-between-services
+    depends_on:
+      - db
+
+  gateway:
+    build: ./gateway
+    environment:
+      LUTHER_CORE_URL: http://core:8000
+      LUTHER_GATEWAY_SECRET: shared-secret-between-services
+    volumes:
+      - ./gateway/auth_info:/app/auth_info
+    depends_on:
+      - core
+
 volumes:
   pgdata:
