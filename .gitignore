@@ -16,8 +16,14 @@ dist/
 # Database
 *.db
 
-# Baileys auth
+# WhatsApp auth & cache
 auth_info/
+.wwebjs_cache/
+qr.html
+
+# Google OAuth tokens and credentials
+core/credentials.json
+core/token_*.json
 
 # IDE
 .vscode/

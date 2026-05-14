@@ -52,6 +52,6 @@ async def receive_message(
 
     logger.info("Message from %s: %s", msg.sender, msg.body[:60])
 
-    reply_text = await think(sender=msg.sender, message=msg.body)
+    reply_text = await think(sender=msg.sender, message=msg.body, media_url=msg.media_url)
 
     return OutgoingReply(sender=msg.sender, reply=reply_text)

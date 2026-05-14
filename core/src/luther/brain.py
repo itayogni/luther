@@ -9,6 +9,7 @@ from luther.calendar_tools import get_events_for_days
 from luther.config import settings
 from luther.gmail_tools import get_gmail_summary
 from luther.tasks_tools import get_tasks_summary
+from luther.whisper_tools import transcribe_audio
 
 _executor = ThreadPoolExecutor(max_workers=4)
 
@@ -71,10 +72,17 @@ async def _fetch_all_context() -> str:
     return "\n\n".join(parts)
 
 
-async def think(sender: str, message: str) -> str:
+async def think(sender: str, message: str, media_url: str | None = None) -> str:
     """Process a message from the user and return Luther's reply."""
     if not settings.anthropic_api_key:
         return "שגיאה: מפתח Anthropic API לא מוגדר."
+
+    if media_url:
+        transcription = await transcribe_audio(media_url)
+        if transcription:
+            message = f"[הקלטה קולית]: {transcription}"
+        else:
+            return "לא הצלחתי לתמלל את ההקלטה. אפשר לנסות שוב?"
 
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 
