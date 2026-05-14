@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
+from luther.brain import think
 from luther.config import settings
 from luther.db import init_db
 
@@ -49,6 +50,8 @@ async def receive_message(
     if x_gateway_secret != settings.gateway_secret:
         raise HTTPException(status_code=401, detail="Invalid gateway secret")
 
-    reply_text = f"קיבלתי: {msg.body}"
+    logger.info("Message from %s: %s", msg.sender, msg.body[:60])
+
+    reply_text = await think(sender=msg.sender, message=msg.body)
 
     return OutgoingReply(sender=msg.sender, reply=reply_text)

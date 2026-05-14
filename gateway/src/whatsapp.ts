@@ -1,13 +1,9 @@
-import makeWASocket, {
-  DisconnectReason,
-  useMultiFileAuthState,
-  WASocket,
-} from "@whiskeysockets/baileys";
-import pino from "pino";
+import { createRequire } from "module";
+import qrcode from "qrcode";
+import { writeFileSync } from "fs";
 
-const logger = pino({ level: "warn" });
-
-let sock: WASocket | null = null;
+const require = createRequire(import.meta.url);
+const { Client, LocalAuth } = require("whatsapp-web.js");
 
 type MessageHandler = (msg: {
   sender: string;
@@ -17,6 +13,7 @@ type MessageHandler = (msg: {
   groupJid: string | null;
 }) => Promise<void>;
 
+let client: any = null;
 let onMessage: MessageHandler | null = null;
 
 export function setMessageHandler(handler: MessageHandler) {
@@ -24,58 +21,54 @@ export function setMessageHandler(handler: MessageHandler) {
 }
 
 export async function connectWhatsApp(): Promise<void> {
-  const { state, saveCreds } = await useMultiFileAuthState("auth_info");
-
-  sock = makeWASocket({
-    auth: state,
-    logger,
-    printQRInTerminal: true,
+  client = new Client({
+    authStrategy: new LocalAuth({ dataPath: "auth_info" }),
+    puppeteer: {
+      headless: true,
+      cacheDirectory: ".wwebjs_cache",
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    },
   });
 
-  sock.ev.on("creds.update", saveCreds);
+  client.on("qr", async (qr: string) => {
+    console.log("QR code generated — open qr.html in your browser to scan");
+    const qrImageUrl = await qrcode.toDataURL(qr);
+    const html = `<!DOCTYPE html><html><body style="display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#fff"><img src="${qrImageUrl}" style="width:400px;height:400px"/></body></html>`;
+    writeFileSync("qr.html", html);
+  });
 
-  sock.ev.on("connection.update", (update) => {
-    const { connection, lastDisconnect } = update;
-    if (connection === "close") {
-      const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
-      if (statusCode !== DisconnectReason.loggedOut) {
-        console.log("Connection lost. Reconnecting...");
-        connectWhatsApp();
-      } else {
-        console.log("Logged out. Delete auth_info/ and restart to re-scan QR.");
-      }
-    } else if (connection === "open") {
-      console.log("WhatsApp connected successfully.");
+  client.on("ready", () => {
+    console.log("WhatsApp connected successfully.");
+  });
+
+  client.on("disconnected", (reason: string) => {
+    console.log("WhatsApp disconnected:", reason);
+    connectWhatsApp();
+  });
+
+  client.on("message", async (msg: any) => {
+    if (msg.fromMe) return;
+
+    const chat = await msg.getChat();
+    const isGroup = chat.isGroup;
+    const sender: string = isGroup ? msg.author || msg.from : msg.from;
+    const groupJid: string | null = isGroup ? msg.from : null;
+
+    if (onMessage) {
+      await onMessage({
+        sender,
+        body: msg.body,
+        messageType: msg.type,
+        timestamp: msg.timestamp,
+        groupJid,
+      });
     }
   });
 
-  sock.ev.on("messages.upsert", async ({ messages }) => {
-    for (const msg of messages) {
-      if (!msg.message || msg.key.fromMe) continue;
-
-      const sender = msg.key.remoteJid || "";
-      const isGroup = sender.endsWith("@g.us");
-      const body =
-        msg.message.conversation ||
-        msg.message.extendedTextMessage?.text ||
-        "";
-      const messageType = body ? "text" : "media";
-      const timestamp = msg.messageTimestamp as number;
-
-      if (onMessage) {
-        await onMessage({
-          sender: isGroup ? (msg.key.participant || sender) : sender,
-          body,
-          messageType,
-          timestamp,
-          groupJid: isGroup ? sender : null,
-        });
-      }
-    }
-  });
+  await client.initialize();
 }
 
 export async function sendMessage(jid: string, text: string): Promise<void> {
-  if (!sock) throw new Error("WhatsApp not connected");
-  await sock.sendMessage(jid, { text });
+  if (!client) throw new Error("WhatsApp not connected");
+  await client.sendMessage(jid, text);
 }

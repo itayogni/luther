@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -7,8 +7,10 @@ class Settings(BaseSettings):
     gateway_secret: str = "shared-secret-between-services"
     core_host: str = "0.0.0.0"
     core_port: int = 8000
+    anthropic_api_key: str = ""
+    claude_model: str = "claude-haiku-4-5-20251001"
 
-    model_config = {"env_prefix": "LUTHER_"}
+    model_config = SettingsConfigDict(env_prefix="LUTHER_", env_file=".env", extra="ignore")
 
 
 settings = Settings()
