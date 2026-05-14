@@ -39,12 +39,13 @@ Set-Content -Path $backendScript -Value @"
 Set-Location '$CoreDir'
 `$env:LUTHER_DATABASE_URL = 'sqlite+aiosqlite:///luther_dev.db'
 Write-Host '--- Luther Core (FastAPI :8000) ---' -ForegroundColor Cyan
-& .\.venv\Scripts\uvicorn.exe luther.main:app --host 0.0.0.0 --port 8000 --reload
+C:\luther-venv\Scripts\pip.exe install -e . -q 2>`$null
+C:\luther-venv\Scripts\uvicorn.exe luther.main:app --host 0.0.0.0 --port 8000 --reload
 "@ -Encoding UTF8
 
 $gatewayScript = Join-Path $LutherRoot "run_gateway.ps1"
 Set-Content -Path $gatewayScript -Value @"
-Set-Location '$GatewayDir'
+Set-Location 'C:\luther-gateway'
 Write-Host '--- Luther Gateway (WhatsApp) ---' -ForegroundColor Green
 npm run dev
 "@ -Encoding UTF8

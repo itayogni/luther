@@ -1,3 +1,3 @@
-﻿Set-Location 'C:\Users\ItayOgni\Documents\vc\עוזר אישי שלי\luther\gateway'
+﻿Set-Location 'C:\luther-gateway'
 Write-Host '--- Luther Gateway (WhatsApp) ---' -ForegroundColor Green
 npm run dev

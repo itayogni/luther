@@ -25,7 +25,7 @@ export async function connectWhatsApp(): Promise<void> {
     authStrategy: new LocalAuth({ dataPath: "auth_info" }),
     puppeteer: {
       headless: true,
-      cacheDirectory: ".wwebjs_cache",
+      executablePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     },
   });
