@@ -30,6 +30,7 @@ class IncomingMessage(BaseModel):
     timestamp: int
     group_jid: str | None = None
     media_url: str | None = None
+    chat_name: str | None = None
 
 
 class OutgoingReply(BaseModel):
@@ -50,7 +51,15 @@ async def receive_message(
     if x_gateway_secret != settings.gateway_secret:
         raise HTTPException(status_code=401, detail="Invalid gateway secret")
 
-    logger.info("Message from %s: %s", msg.sender, msg.body[:60])
+    if not msg.chat_name:
+        logger.warning("BLOCKED: message without chat_name from %s", msg.sender)
+        return OutgoingReply(sender=msg.sender, reply="")
+
+    if msg.chat_name != settings.allowed_chat_name:
+        logger.warning("BLOCKED: message from unauthorized chat '%s'", msg.chat_name)
+        return OutgoingReply(sender=msg.sender, reply="")
+
+    logger.info("Message from %s in '%s': %s", msg.sender, msg.chat_name, msg.body[:60])
 
     reply_text = await think(sender=msg.sender, message=msg.body, media_url=msg.media_url)
 

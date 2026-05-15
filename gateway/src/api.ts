@@ -8,6 +8,7 @@ interface MessagePayload {
   message_type: string;
   timestamp: number;
   group_jid: string | null;
+  chat_name: string | null;
 }
 
 interface ReplyPayload {

@@ -13,6 +13,7 @@ async function main() {
       message_type: msg.messageType,
       timestamp: msg.timestamp,
       group_jid: msg.groupJid,
+      chat_name: msg.chatName,
     });
 
     if (reply?.reply) {

@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     core_port: int = 8000
     anthropic_api_key: str = ""
     claude_model: str = "claude-haiku-4-5-20251001"
+    allowed_chat_name: str = "לותר ואני"
 
     model_config = SettingsConfigDict(env_prefix="LUTHER_", env_file=".env", extra="ignore")
 
