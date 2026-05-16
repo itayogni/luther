@@ -30,7 +30,7 @@ def _get_client() -> AsyncAnthropic:
 _history: dict[str, deque] = defaultdict(lambda: deque(maxlen=20))
 
 # Per-sender lock to prevent race conditions on conversation history
-_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+_locks: dict[str, asyncio.Lock] = {}
 
 SYSTEM_PROMPT = """אתה לות'ר — העוזר האישי של איתי אוגני בווטסאפ.
 
@@ -114,6 +114,8 @@ async def think(sender: str, message: str, media_url: str | None = None) -> str:
     system_with_context = SYSTEM_PROMPT + f"\n\n## מידע עדכני\n{context}"
 
     # Lock per sender to prevent history race conditions
+    if sender not in _locks:
+        _locks[sender] = asyncio.Lock()
     async with _locks[sender]:
         history = _history[sender]
         history.append({"role": "user", "content": message})

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import tempfile
 from pathlib import Path
@@ -19,6 +20,15 @@ def _get_model() -> WhisperModel:
     return _model
 
 
+def _transcribe_sync(audio_path: str) -> str:
+    """Synchronous transcription — runs in executor."""
+    model = _get_model()
+    segments, info = model.transcribe(audio_path, language="he")
+    text = " ".join(seg.text.strip() for seg in segments)
+    logger.info("Transcribed %ds of audio → %d chars", int(info.duration), len(text))
+    return text
+
+
 async def transcribe_audio(media_url: str) -> str:
     """Download audio from URL and transcribe to Hebrew text."""
     audio_path: str | None = None
@@ -31,11 +41,9 @@ async def transcribe_audio(media_url: str) -> str:
             f.write(response.content)
             audio_path = f.name
 
-        model = _get_model()
-        segments, info = model.transcribe(audio_path, language="he")
-        text = " ".join(seg.text.strip() for seg in segments)
-
-        logger.info("Transcribed %ds of audio → %d chars", int(info.duration), len(text))
+        # Run blocking transcription in executor to avoid blocking event loop
+        loop = asyncio.get_event_loop()
+        text = await loop.run_in_executor(None, _transcribe_sync, audio_path)
         return text
 
     except MemoryError:

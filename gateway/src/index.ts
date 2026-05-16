@@ -22,9 +22,16 @@ async function main() {
         const replyTo = msg.groupJid || msg.sender;
         await sendMessage(replyTo, reply.reply);
       } else if (reply === null) {
-        // Core is unreachable — notify user
-        const replyTo = msg.groupJid || msg.sender;
-        await sendMessage(replyTo, "לות'ר לא זמין כרגע. נסה שוב בעוד דקה.");
+        // Core is unreachable — only notify in authorized chat (iron rule)
+        const allowedJid = process.env.LUTHER_ALLOWED_GROUP_JID || "";
+        const allowedName = process.env.LUTHER_ALLOWED_CHAT_NAME || "לותר ואני";
+        if (
+          (allowedJid && msg.groupJid === allowedJid) ||
+          (!allowedJid && msg.chatName === allowedName)
+        ) {
+          const replyTo = msg.groupJid || msg.sender;
+          await sendMessage(replyTo, "לות'ר לא זמין כרגע. נסה שוב בעוד דקה.");
+        }
       }
     } catch (err) {
       console.error("Message handler error:", err);

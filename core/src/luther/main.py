@@ -53,7 +53,7 @@ async def receive_message(
 
     # Iron rule: only respond in the authorized chat
     # Use group_jid (immutable) if configured, fall back to chat_name
-    if settings.allowed_group_jid:
+    if settings.allowed_group_jid.strip():
         if msg.group_jid != settings.allowed_group_jid:
             logger.warning("BLOCKED: unauthorized group_jid '%s' from %s", msg.group_jid, msg.sender)
             return OutgoingReply(sender=msg.sender, reply="")
