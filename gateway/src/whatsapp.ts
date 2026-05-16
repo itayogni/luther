@@ -33,15 +33,13 @@ export async function connectWhatsApp(): Promise<void> {
 
   sock.ev.on("creds.update", saveCreds);
 
-  sock.ev.on("connection.update", (update) => {
+  sock.ev.on("connection.update", async (update: any) => {
     const { connection, lastDisconnect, qr } = update;
     if (qr) {
-      console.log("QR code ready — opening qr.html in browser...");
+      console.log("QR code ready — saving qr.html...");
       const qrImageUrl = await qrcode.toDataURL(qr);
       const html = `<!DOCTYPE html><html><body style="display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#fff"><img src="${qrImageUrl}" style="width:400px;height:400px"/></body></html>`;
       writeFileSync("qr.html", html);
-      const { exec } = await import("child_process");
-      exec("start qr.html");
     }
     if (connection === "close") {
       const code = (lastDisconnect?.error as any)?.output?.statusCode;
@@ -56,7 +54,7 @@ export async function connectWhatsApp(): Promise<void> {
     }
   });
 
-  sock.ev.on("messages.upsert", async ({ messages, type }) => {
+  sock.ev.on("messages.upsert", async ({ messages, type }: any) => {
     if (type !== "notify") return;
 
     for (const msg of messages) {
