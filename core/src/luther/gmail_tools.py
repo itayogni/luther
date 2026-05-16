@@ -1,7 +1,7 @@
-import base64
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from email.utils import parsedate_to_datetime
+from zoneinfo import ZoneInfo
 
 from googleapiclient.discovery import build
 
@@ -9,7 +9,7 @@ from luther.auth import ACCOUNTS, get_credentials
 
 logger = logging.getLogger(__name__)
 
-ISRAEL_TZ = timezone(timedelta(hours=3))
+ISRAEL_TZ = ZoneInfo("Asia/Jerusalem")
 
 
 def _decode_header_value(value: str) -> str:

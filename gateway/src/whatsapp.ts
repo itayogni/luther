@@ -7,9 +7,16 @@ import pino from "pino";
 import qrcode from "qrcode";
 import { writeFileSync } from "fs";
 
-const logger = pino({ level: "silent" });
+const logger = pino({ level: "warn" });
 
 let sock: WASocket | null = null;
+
+// Cache group names to avoid losing messages on transient metadata failures
+const groupNameCache = new Map<string, string>();
+
+// Reconnection backoff
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 20;
 
 type MessageHandler = (msg: {
   sender: string;
@@ -44,12 +51,19 @@ export async function connectWhatsApp(): Promise<void> {
     if (connection === "close") {
       const code = (lastDisconnect?.error as any)?.output?.statusCode;
       if (code !== DisconnectReason.loggedOut) {
-        console.log("Reconnecting...");
-        connectWhatsApp();
+        reconnectAttempts++;
+        if (reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+          console.error(`Failed to reconnect after ${MAX_RECONNECT_ATTEMPTS} attempts. Exiting.`);
+          process.exit(1);
+        }
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 60000);
+        console.log(`Reconnecting (attempt ${reconnectAttempts}) in ${delay / 1000}s...`);
+        setTimeout(() => connectWhatsApp(), delay);
       } else {
         console.log("Logged out — delete auth_info/ and restart to re-scan QR.");
       }
     } else if (connection === "open") {
+      reconnectAttempts = 0;
       console.log("WhatsApp connected successfully.");
     }
   });
@@ -80,8 +94,10 @@ export async function connectWhatsApp(): Promise<void> {
         try {
           const metadata = await sock.groupMetadata(sender);
           chatName = metadata.subject;
-        } catch {
-          chatName = null;
+          groupNameCache.set(sender, chatName);
+        } catch (err) {
+          console.warn(`Failed to get group metadata for ${sender}:`, err);
+          chatName = groupNameCache.get(sender) || null;
         }
       } else if (!isGroup) {
         chatName = actualSender;

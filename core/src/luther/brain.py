@@ -3,7 +3,7 @@ import logging
 from collections import defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor
 
-from anthropic import AsyncAnthropic
+from anthropic import AsyncAnthropic, AuthenticationError, RateLimitError
 
 from luther.calendar_tools import get_events_for_days
 from luther.config import settings
@@ -15,8 +15,22 @@ _executor = ThreadPoolExecutor(max_workers=4)
 
 logger = logging.getLogger(__name__)
 
+# Singleton Anthropic client (reused across requests)
+_client: AsyncAnthropic | None = None
+
+
+def _get_client() -> AsyncAnthropic:
+    global _client
+    if _client is None:
+        _client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    return _client
+
+
 # Keep last 20 messages per sender in memory (resets on server restart)
 _history: dict[str, deque] = defaultdict(lambda: deque(maxlen=20))
+
+# Per-sender lock to prevent race conditions on conversation history
+_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
 SYSTEM_PROMPT = """אתה לות'ר — העוזר האישי של איתי אוגני בווטסאפ.
 
@@ -62,18 +76,22 @@ SYSTEM_PROMPT = """אתה לות'ר — העוזר האישי של איתי או
 async def _fetch_all_context() -> str:
     """Fetch calendar, tasks, and gmail in parallel."""
     loop = asyncio.get_event_loop()
-    calendar, tasks, gmail = await asyncio.gather(
+    results = await asyncio.gather(
         loop.run_in_executor(_executor, get_events_for_days, 2),
         loop.run_in_executor(_executor, get_tasks_summary),
         loop.run_in_executor(_executor, get_gmail_summary, 24),
+        return_exceptions=True,
     )
+
+    labels = ["יומן", "משימות", "מיילים"]
     parts = []
-    if calendar:
-        parts.append(f"## יומן\n{calendar}")
-    if tasks:
-        parts.append(f"## משימות\n{tasks}")
-    if gmail:
-        parts.append(f"## מיילים\n{gmail}")
+    for label, result in zip(labels, results):
+        if isinstance(result, Exception):
+            logger.error("Failed to fetch %s: %s", label, result)
+            parts.append(f"## {label}\n⚠ לא זמין כרגע (שגיאה בחיבור)")
+        elif result:
+            parts.append(f"## {label}\n{result}")
+
     return "\n\n".join(parts)
 
 
@@ -89,29 +107,41 @@ async def think(sender: str, message: str, media_url: str | None = None) -> str:
         else:
             return "לא הצלחתי לתמלל את ההקלטה. אפשר לנסות שוב?"
 
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = _get_client()
 
     # Fetch all Google context in parallel
     context = await _fetch_all_context()
     system_with_context = SYSTEM_PROMPT + f"\n\n## מידע עדכני\n{context}"
 
-    # Add user message to history
-    history = _history[sender]
-    history.append({"role": "user", "content": message})
+    # Lock per sender to prevent history race conditions
+    async with _locks[sender]:
+        history = _history[sender]
+        history.append({"role": "user", "content": message})
 
-    try:
-        response = await client.messages.create(
-            model=settings.claude_model,
-            max_tokens=1024,
-            system=system_with_context,
-            messages=list(history),
-        )
-        reply = response.content[0].text
-        history.append({"role": "assistant", "content": reply})
+        try:
+            response = await client.messages.create(
+                model=settings.claude_model,
+                max_tokens=1024,
+                system=system_with_context,
+                messages=list(history),
+            )
+            reply = response.content[0].text
+            history.append({"role": "assistant", "content": reply})
 
-        logger.info("Brain replied (%d tokens used)", response.usage.output_tokens)
-        return reply
+            logger.info("Brain replied (%d tokens used)", response.usage.output_tokens)
+            return reply
 
-    except Exception as exc:
-        logger.error("Claude API error: %s", exc)
-        return "שגיאה זמנית, נסה שוב."
+        except AuthenticationError:
+            history.pop()  # Remove failed user message
+            logger.critical("Anthropic API key is invalid or expired!")
+            return "שגיאה: מפתח ה-API לא תקין. צריך לעדכן."
+
+        except RateLimitError:
+            history.pop()
+            logger.warning("Anthropic rate limit hit")
+            return "יותר מדי הודעות. חכה דקה ונסה שוב."
+
+        except Exception as exc:
+            history.pop()  # Remove failed user message to keep history valid
+            logger.error("Claude API error (%s): %s", type(exc).__name__, exc)
+            return "שגיאה זמנית, נסה שוב."

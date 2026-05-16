@@ -51,13 +51,19 @@ async def receive_message(
     if x_gateway_secret != settings.gateway_secret:
         raise HTTPException(status_code=401, detail="Invalid gateway secret")
 
-    if not msg.chat_name:
-        logger.warning("BLOCKED: message without chat_name from %s", msg.sender)
-        return OutgoingReply(sender=msg.sender, reply="")
-
-    if msg.chat_name != settings.allowed_chat_name:
-        logger.warning("BLOCKED: message from unauthorized chat '%s'", msg.chat_name)
-        return OutgoingReply(sender=msg.sender, reply="")
+    # Iron rule: only respond in the authorized chat
+    # Use group_jid (immutable) if configured, fall back to chat_name
+    if settings.allowed_group_jid:
+        if msg.group_jid != settings.allowed_group_jid:
+            logger.warning("BLOCKED: unauthorized group_jid '%s' from %s", msg.group_jid, msg.sender)
+            return OutgoingReply(sender=msg.sender, reply="")
+    else:
+        if not msg.chat_name:
+            logger.warning("BLOCKED: message without chat_name from %s", msg.sender)
+            return OutgoingReply(sender=msg.sender, reply="")
+        if msg.chat_name != settings.allowed_chat_name:
+            logger.warning("BLOCKED: message from unauthorized chat '%s'", msg.chat_name)
+            return OutgoingReply(sender=msg.sender, reply="")
 
     logger.info("Message from %s in '%s': %s", msg.sender, msg.chat_name, msg.body[:60])
 

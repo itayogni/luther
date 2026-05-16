@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from googleapiclient.discovery import build
 
@@ -8,7 +8,7 @@ from luther.auth import ACCOUNTS, get_credentials
 
 logger = logging.getLogger(__name__)
 
-ISRAEL_TZ = timezone(timedelta(hours=3))
+ISRAEL_TZ = ZoneInfo("Asia/Jerusalem")
 HEBREW_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"]
 HEBREW_MONTHS = [
     "", "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",

@@ -9,6 +9,7 @@ interface MessagePayload {
   timestamp: number;
   group_jid: string | null;
   chat_name: string | null;
+  media_url: string | null;
 }
 
 interface ReplyPayload {
