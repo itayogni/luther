@@ -58,6 +58,7 @@ def _fetch_events_for_account(account: dict, days: int) -> list[dict]:
                 dt = datetime.fromisoformat(dt_str).astimezone(ISRAEL_TZ)
 
             events.append({
+                "id": ev.get("id", ""),
                 "dt": dt,
                 "time_str": _format_time(dt_str, is_all_day),
                 "summary": ev.get("summary", "(ללא שם)"),
@@ -148,6 +149,8 @@ def get_events_for_days(days: int = 2) -> str:
         line = f"  [{ev['account']}] {ev['time_str']} — {ev['summary']}"
         if ev["location"]:
             line += f" ({ev['location']})"
+        if ev.get("id"):
+            line += f" [id:{ev['id']}]"
         lines.append(line)
 
     return "\n".join(lines)

@@ -30,16 +30,22 @@ def _transcribe_sync(audio_path: str) -> str:
 
 
 async def transcribe_audio(media_url: str) -> str:
-    """Download audio from URL and transcribe to Hebrew text."""
+    """Transcribe audio to Hebrew text. Accepts a local file path or HTTP URL."""
     audio_path: str | None = None
+    is_local = media_url.startswith("/") or media_url.startswith("C:")
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            response = await client.get(media_url)
-            response.raise_for_status()
+        if is_local:
+            # Local file path (from gateway on same server)
+            audio_path = media_url
+        else:
+            # Remote URL — download first
+            async with httpx.AsyncClient(timeout=60) as client:
+                response = await client.get(media_url)
+                response.raise_for_status()
 
-        with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as f:
-            f.write(response.content)
-            audio_path = f.name
+            with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as f:
+                f.write(response.content)
+                audio_path = f.name
 
         # Run blocking transcription in executor to avoid blocking event loop
         loop = asyncio.get_event_loop()
@@ -53,5 +59,6 @@ async def transcribe_audio(media_url: str) -> str:
         logger.error("Whisper transcription failed (%s): %s", type(exc).__name__, exc)
         return ""
     finally:
+        # Always clean up the audio file (local or downloaded)
         if audio_path:
             Path(audio_path).unlink(missing_ok=True)

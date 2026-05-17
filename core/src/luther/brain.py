@@ -127,12 +127,25 @@ TOOLS = [
             "required": ["title"],
         },
     },
+    {
+        "name": "delete_event",
+        "description": "מחיקת אירוע מיומן גוגל לפי מזהה האירוע",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "event_id": {"type": "string", "description": "מזהה האירוע (event ID מגוגל)"},
+                "account_name": {"type": "string", "description": "חשבון: עבודה או אישי", "default": "אישי"},
+            },
+            "required": ["event_id"],
+        },
+    },
 ]
 
 TOOL_HANDLERS = {
     "create_event": lambda args: create_event(**args),
     "create_task": lambda args: create_task(**args),
     "complete_task": lambda args: complete_task(**args),
+    "delete_event": lambda args: delete_event(**args),
 }
 
 

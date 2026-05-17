@@ -65,7 +65,7 @@ async def receive_message(
             logger.warning("BLOCKED: message from unauthorized chat '%s'", msg.chat_name)
             return OutgoingReply(sender=msg.sender, reply="")
 
-    logger.info("Message from %s in '%s': %s", msg.sender, msg.chat_name, msg.body[:60])
+    logger.info("Message from %s in '%s' (jid=%s): %s", msg.sender, msg.chat_name, msg.group_jid, msg.body[:60])
 
     reply_text = await think(sender=msg.sender, message=msg.body, media_url=msg.media_url)
 
