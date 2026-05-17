@@ -73,6 +73,54 @@ def _fetch_events_for_account(account: dict, days: int) -> list[dict]:
         return []
 
 
+def create_event(
+    summary: str,
+    start_time: str,
+    end_time: str,
+    account_name: str = "אישי",
+    location: str = "",
+    description: str = "",
+) -> str:
+    """Create a calendar event. start_time/end_time in ISO format (e.g. 2026-05-18T10:00:00+03:00)."""
+    account = next((a for a in ACCOUNTS if a["name"] == account_name), ACCOUNTS[-1])
+    try:
+        creds = get_credentials(account["token"])
+        service = build("calendar", "v3", credentials=creds)
+
+        event_body: dict = {
+            "summary": summary,
+            "start": {"dateTime": start_time, "timeZone": "Asia/Jerusalem"},
+            "end": {"dateTime": end_time, "timeZone": "Asia/Jerusalem"},
+        }
+        if location:
+            event_body["location"] = location
+        if description:
+            event_body["description"] = description
+
+        created = service.events().insert(calendarId="primary", body=event_body).execute()
+        dt = datetime.fromisoformat(start_time).astimezone(ISRAEL_TZ)
+        date_str = _format_date_hebrew(dt)
+        time_str = dt.strftime("%H:%M")
+        return f"נוצר אירוע: {summary} ב-{date_str} {time_str} (חשבון {account_name})"
+
+    except Exception as exc:
+        logger.error("Failed to create event: %s", exc)
+        return f"שגיאה ביצירת אירוע: {exc}"
+
+
+def delete_event(event_id: str, account_name: str = "אישי") -> str:
+    """Delete a calendar event by its ID."""
+    account = next((a for a in ACCOUNTS if a["name"] == account_name), ACCOUNTS[-1])
+    try:
+        creds = get_credentials(account["token"])
+        service = build("calendar", "v3", credentials=creds)
+        service.events().delete(calendarId="primary", eventId=event_id).execute()
+        return "האירוע נמחק בהצלחה."
+    except Exception as exc:
+        logger.error("Failed to delete event: %s", exc)
+        return f"שגיאה במחיקת אירוע: {exc}"
+
+
 def get_events_for_days(days: int = 2) -> str:
     all_events: list[dict] = []
     missing = []

@@ -17,8 +17,8 @@ BASE_DIR = Path(__file__).parent.parent.parent  # core/
 CREDENTIALS_FILE = BASE_DIR / "credentials.json"
 
 SCOPES = [
-    "https://www.googleapis.com/auth/calendar.readonly",
-    "https://www.googleapis.com/auth/tasks.readonly",
+    "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/tasks",
     "https://www.googleapis.com/auth/gmail.readonly",
 ]
 
