@@ -1,7 +1,11 @@
 import asyncio
+import json
 import logging
+import re
 from collections import defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from anthropic import AsyncAnthropic, AuthenticationError, RateLimitError
 
@@ -26,11 +30,19 @@ def _get_client() -> AsyncAnthropic:
     return _client
 
 
-# Keep last 20 messages per sender in memory (resets on server restart)
-_history: dict[str, deque] = defaultdict(lambda: deque(maxlen=20))
+# Keep last 10 messages per sender (was 20 — saves ~30% tokens)
+_history: dict[str, deque] = defaultdict(lambda: deque(maxlen=10))
 
 # Per-sender lock to prevent race conditions on conversation history
 _locks: dict[str, asyncio.Lock] = {}
+
+# Keywords that signal we need Google context
+_CONTEXT_KEYWORDS = re.compile(
+    r"יומן|לוח|פגישה|אירוע|משימה|task|תזכור|מייל|mail|gmail|"
+    r"מתי|מחר|היום|השבוע|schedule|calendar|קבע|תקבע|תוסיף|תמחק|"
+    r"סמן.*בוצע|השלם|מה יש לי|תכנן|תזכיר",
+    re.IGNORECASE,
+)
 
 SYSTEM_PROMPT = """אתה לות'ר — העוזר האישי של איתי אוגני בווטסאפ.
 
@@ -71,10 +83,6 @@ SYSTEM_PROMPT = """אתה לות'ר — העוזר האישי של איתי או
 אם הגיעה הודעה מקבוצה אחרת — התעלם לחלוטין.
 """
 
-
-import json
-from datetime import datetime
-from zoneinfo import ZoneInfo
 
 TOOLS = [
     {
@@ -164,11 +172,30 @@ async def think(sender: str, message: str, media_url: str | None = None) -> str:
 
     client = _get_client()
 
-    # Fetch all Google context in parallel
-    context = await _fetch_all_context()
+    # Smart context: only fetch Google data when the message is relevant
+    needs_context = bool(_CONTEXT_KEYWORDS.search(message))
+    if needs_context:
+        context = await _fetch_all_context()
+    else:
+        context = ""
+
     now = datetime.now(ZoneInfo("Asia/Jerusalem"))
-    date_line = f"\n\nהתאריך והשעה עכשיו: {now.strftime('%A %Y-%m-%d %H:%M')} (Asia/Jerusalem)"
-    system_with_context = SYSTEM_PROMPT + f"\n\n## מידע עדכני\n{context}" + date_line
+    date_line = f"התאריך והשעה עכשיו: {now.strftime('%A %Y-%m-%d %H:%M')} (Asia/Jerusalem)"
+
+    # Build system prompt with prompt caching:
+    # Static part (SYSTEM_PROMPT) is cached, dynamic part (context + date) is not
+    system_blocks = [
+        {
+            "type": "text",
+            "text": SYSTEM_PROMPT,
+            "cache_control": {"type": "ephemeral"},
+        },
+        {
+            "type": "text",
+            "text": (f"\n\n## מידע עדכני\n{context}\n\n{date_line}" if context
+                     else f"\n\n{date_line}"),
+        },
+    ]
 
     # Lock per sender to prevent history race conditions
     if sender not in _locks:
@@ -184,7 +211,7 @@ async def think(sender: str, message: str, media_url: str | None = None) -> str:
                 response = await client.messages.create(
                     model=settings.claude_model,
                     max_tokens=1024,
-                    system=system_with_context,
+                    system=system_blocks,
                     messages=list(history),
                     tools=TOOLS,
                 )
