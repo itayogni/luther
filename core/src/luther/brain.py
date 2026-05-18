@@ -75,7 +75,7 @@ SYSTEM_PROMPT = """אתה לות'ר — עוזר אישי של איתי בווא
 TOOLS = [
     {
         "name": "create_event",
-        "description": "יצירת אירוע ביומן",
+        "description": "יצירת אירוע ביומן (עם אפשרות להזמין משתתפים)",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -85,6 +85,12 @@ TOOLS = [
                 "account_name": {"type": "string", "default": "אישי"},
                 "location": {"type": "string", "default": ""},
                 "description": {"type": "string", "default": ""},
+                "attendees": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "רשימת כתובות מייל של מוזמנים",
+                    "default": [],
+                },
             },
             "required": ["summary", "start_time", "end_time"],
         },

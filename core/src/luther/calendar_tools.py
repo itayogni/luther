@@ -81,6 +81,7 @@ def create_event(
     account_name: str = "אישי",
     location: str = "",
     description: str = "",
+    attendees: list[str] | None = None,
 ) -> str:
     """Create a calendar event. start_time/end_time in ISO format (e.g. 2026-05-18T10:00:00+03:00)."""
     account = next((a for a in ACCOUNTS if a["name"] == account_name), ACCOUNTS[-1])
@@ -97,12 +98,19 @@ def create_event(
             event_body["location"] = location
         if description:
             event_body["description"] = description
+        if attendees:
+            event_body["attendees"] = [{"email": email} for email in attendees]
 
-        created = service.events().insert(calendarId="primary", body=event_body).execute()
+        created = service.events().insert(
+            calendarId="primary", body=event_body, sendUpdates="all",
+        ).execute()
         dt = datetime.fromisoformat(start_time).astimezone(ISRAEL_TZ)
         date_str = _format_date_hebrew(dt)
         time_str = dt.strftime("%H:%M")
-        return f"נוצר אירוע: {summary} ב-{date_str} {time_str} (חשבון {account_name})"
+        result = f"נוצר אירוע: {summary} ב-{date_str} {time_str} (חשבון {account_name})"
+        if attendees:
+            result += f" — הזמנה נשלחה ל: {', '.join(attendees)}"
+        return result
 
     except Exception as exc:
         logger.error("Failed to create event: %s", exc)
